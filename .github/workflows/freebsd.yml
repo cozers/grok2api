@@ -39,13 +39,16 @@ jobs:
       - name: Build in FreeBSD
         uses: vmactions/freebsd-vm@v1
         with:
-          release: "14.2"
+          release: "14.3"
           usesh: true
           prepare: |
             pkg update
-            pkg install -y python313 py313-pip rust cargo pkgconf libffi openssl sqlite3 curl gmake
+            pkg install -y python313 rust cargo pkgconf libffi openssl sqlite3 curl gmake
           run: |
             set -eux
+            python3.13 -m ensurepip --upgrade || true
+            python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
+            python3.13 -m pip --version || python3.13 /tmp/get-pip.py
             python3.13 -m pip install --upgrade pip
             python3.13 -m pip install uv pyinstaller
             python3.13 -m uv sync --frozen --no-dev
