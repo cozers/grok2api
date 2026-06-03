@@ -65,7 +65,7 @@ jobs:
           python3.13 -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
-          python -c 'import tomllib; deps=tomllib.load(open("pyproject.toml","rb"))["project"]["dependencies"]; print("\n".join(dep.split("#", 1)[0].strip() for dep in deps))' > /tmp/grok2api-requirements.txt
+          python -c 'import tomllib; deps=tomllib.load(open("pyproject.toml","rb"))["project"]["dependencies"]; print("\n".join(dep.split("#", 1)[0].strip() for dep in deps if not dep.startswith("curl-cffi")))' > /tmp/grok2api-requirements.txt
           python -m pip install -r /tmp/grok2api-requirements.txt
           PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
           python -m PyInstaller \
@@ -76,7 +76,6 @@ jobs:
             --collect-data app \
             --collect-data tiktoken \
             --collect-all granian \
-            --collect-all curl_cffi \
             --add-data config.defaults.toml:. \
             --add-data pyproject.toml:. \
             packaging/freebsd/launcher.py

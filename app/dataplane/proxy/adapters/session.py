@@ -1,15 +1,18 @@
-"""curl_cffi session builder for reverse-proxy requests."""
+"""HTTP session builder for reverse-proxy requests."""
 
 import asyncio
 from typing import Any
 from urllib.parse import urlparse
 
-from curl_cffi.const import CurlOpt
-
 from app.platform.config.snapshot import get_config
 from app.platform.errors import UpstreamError
 from app.control.proxy.models import ProxyLease
 from app.dataplane.proxy.adapters.profile import resolve_proxy_profile
+
+try:
+    from curl_cffi.const import CurlOpt
+except Exception:  # FreeBSD builds run without curl_cffi.
+    CurlOpt = None  # type: ignore[assignment]
 
 
 def _skip_proxy_ssl(proxy_url: str) -> bool:
@@ -39,7 +42,7 @@ def build_session_kwargs(
     browser_override: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build kwargs suitable for ``curl_cffi.requests.AsyncSession``."""
+    """Build kwargs suitable for the preferred HTTP session implementation."""
     kwargs: dict[str, Any] = dict(extra or {})
 
     # Browser impersonation.
@@ -59,7 +62,7 @@ def build_session_kwargs(
             kwargs.setdefault("proxies", {"http": proxy_url, "https": proxy_url})
 
     # curl SSL options for proxy.
-    if _skip_proxy_ssl(proxy_url):
+    if CurlOpt is not None and _skip_proxy_ssl(proxy_url):
         opts = dict(kwargs.get("curl_options") or {})
         opts[CurlOpt.PROXY_SSL_VERIFYPEER] = 0
         opts[CurlOpt.PROXY_SSL_VERIFYHOST] = 0
@@ -108,9 +111,12 @@ class ResettableSession:
         self._session = self._create()
 
     def _create(self):
-        from curl_cffi.requests import AsyncSession
+        try:
+            from curl_cffi.requests import AsyncSession
 
-        return AsyncSession(**self._kwargs)
+            return AsyncSession(**self._kwargs)
+        except ImportError:
+            return _AiohttpSession(**self._kwargs)
 
     async def _maybe_reset(self) -> None:
         if not self._reset_pending:
@@ -160,6 +166,85 @@ class ResettableSession:
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._session, name)
+
+
+class _AiohttpResponse:
+    def __init__(self, response, content: bytes | None = None) -> None:
+        self._response = response
+        self.status_code = response.status
+        self.content = content if content is not None else b""
+
+    async def aiter_lines(self):
+        async for raw in self._response.content:
+            for line in raw.splitlines():
+                yield line.decode("utf-8", "replace")
+
+    async def aiter_content(self):
+        async for chunk in self._response.content.iter_chunked(65536):
+            yield chunk
+
+
+class _AiohttpSession:
+    """Small curl_cffi-compatible subset backed by aiohttp.
+
+    This fallback is primarily for FreeBSD/serv00 packages where curl_cffi does
+    not currently build. Browser TLS impersonation is unavailable in this mode.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        self._kwargs = kwargs
+        self._session = None
+
+    async def _ensure(self):
+        if self._session is None:
+            import aiohttp
+
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    def _request_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        request_kwargs = dict(kwargs)
+        request_kwargs.pop("impersonate", None)
+        request_kwargs.pop("curl_options", None)
+        request_kwargs.pop("allow_redirects", None)
+        proxy = self._kwargs.get("proxy")
+        proxies = self._kwargs.get("proxies") or {}
+        if not proxy and isinstance(proxies, dict):
+            proxy = proxies.get("https") or proxies.get("http")
+        if proxy:
+            request_kwargs["proxy"] = proxy
+        return request_kwargs
+
+    async def _request(self, method: str, url: str, **kwargs: Any):
+        session = await self._ensure()
+        stream = bool(kwargs.pop("stream", False))
+        allow_redirects = kwargs.pop("allow_redirects", True)
+        request_kwargs = self._request_kwargs(kwargs)
+        response = await session.request(
+            method.upper(),
+            url,
+            allow_redirects=allow_redirects,
+            **request_kwargs,
+        )
+        if stream:
+            return _AiohttpResponse(response)
+        content = await response.read()
+        response.release()
+        return _AiohttpResponse(response, content)
+
+    async def get(self, url: str, **kwargs: Any):
+        return await self._request("GET", url, **kwargs)
+
+    async def post(self, url: str, **kwargs: Any):
+        return await self._request("POST", url, **kwargs)
+
+    async def delete(self, url: str, **kwargs: Any):
+        return await self._request("DELETE", url, **kwargs)
+
+    async def close(self) -> None:
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
 
 
 __all__ = [
