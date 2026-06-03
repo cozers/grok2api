@@ -106,6 +106,22 @@ jobs:
           test -f freebsd-build.log || echo "freebsd-build.log missing" > freebsd-build.log
           test -d dist || mkdir -p dist
 
+      - name: Append FreeBSD log summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## FreeBSD build log tail"
+            echo
+            echo '```text'
+            if [ -f freebsd-build.log ]; then
+              tail -n 200 freebsd-build.log
+            else
+              echo "freebsd-build.log missing"
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload artifact
         if: always()
         uses: actions/upload-artifact@v4
