@@ -51,46 +51,49 @@ jobs:
       - name: Build in FreeBSD
         shell: freebsd {0}
         run: |
-          rm -f freebsd-build.ok freebsd-build.status freebsd-build.log
+          rm -f freebsd-build.ok freebsd-build.status freebsd-build.log freebsd-build.sh
+          cat > freebsd-build.sh <<'SH'
+          #!/bin/sh
+          set -eux
+          freebsd-version
+          python3.13 --version
+          cargo --version
+          python3.13 -m ensurepip --upgrade || true
+          python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
+          python3.13 -m pip --version || python3.13 /tmp/get-pip.py
+          python3.13 -m pip install --upgrade pip
+          python3.13 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -c 'import tomllib; deps=tomllib.load(open("pyproject.toml","rb"))["project"]["dependencies"]; print("\n".join(dep.split("#", 1)[0].strip() for dep in deps))' > /tmp/grok2api-requirements.txt
+          python -m pip install -r /tmp/grok2api-requirements.txt
+          PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
+          python -m PyInstaller \
+            --clean \
+            --onefile \
+            --name grok2api \
+            --collect-submodules app \
+            --collect-data app \
+            --collect-data tiktoken \
+            --collect-all granian \
+            --collect-all curl_cffi \
+            --add-data config.defaults.toml:. \
+            --add-data pyproject.toml:. \
+            packaging/freebsd/launcher.py
+          strip dist/grok2api || true
+          mkdir -p dist/grok2api-freebsd-amd64
+          cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
+          cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
+          cp packaging/freebsd/start.sh dist/grok2api-freebsd-amd64/start.sh
+          cp packaging/freebsd/README.serv00.md dist/grok2api-freebsd-amd64/README.serv00.md
+          chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
+          tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
+          ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
+          touch freebsd-build.ok
+          SH
+          chmod +x freebsd-build.sh
           set +e
-          {
-            set -eux
-            freebsd-version
-            python3.13 --version
-            cargo --version
-            python3.13 -m ensurepip --upgrade || true
-            python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
-            python3.13 -m pip --version || python3.13 /tmp/get-pip.py
-            python3.13 -m pip install --upgrade pip
-            python3.13 -m venv .venv
-            . .venv/bin/activate
-            python -m pip install --upgrade pip
-            python -c 'import tomllib; deps=tomllib.load(open("pyproject.toml","rb"))["project"]["dependencies"]; print("\n".join(dep.split("#", 1)[0].strip() for dep in deps))' > /tmp/grok2api-requirements.txt
-            python -m pip install -r /tmp/grok2api-requirements.txt
-            PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
-            python -m PyInstaller \
-              --clean \
-              --onefile \
-              --name grok2api \
-              --collect-submodules app \
-              --collect-data app \
-              --collect-data tiktoken \
-              --collect-all granian \
-              --collect-all curl_cffi \
-              --add-data config.defaults.toml:. \
-              --add-data pyproject.toml:. \
-              packaging/freebsd/launcher.py
-            strip dist/grok2api || true
-            mkdir -p dist/grok2api-freebsd-amd64
-            cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
-            cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
-            cp packaging/freebsd/start.sh dist/grok2api-freebsd-amd64/start.sh
-            cp packaging/freebsd/README.serv00.md dist/grok2api-freebsd-amd64/README.serv00.md
-            chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
-            tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
-            ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
-            touch freebsd-build.ok
-          } > freebsd-build.log 2>&1
+          ./freebsd-build.sh > freebsd-build.log 2>&1
           status=$?
           echo "$status" > freebsd-build.status
           cat freebsd-build.log
@@ -102,6 +105,7 @@ jobs:
         if: always()
         shell: freebsd {0}
         run: |
+          set +e
           ls -la
           test -f freebsd-build.log || echo "freebsd-build.log missing" > freebsd-build.log
           test -d dist || mkdir -p dist
