@@ -136,12 +136,34 @@ jobs:
             freebsd-build.log
           if-no-files-found: warn
 
+      - name: Detect FreeBSD build result
+        if: always()
+        id: freebsd_result
+        shell: bash
+        run: |
+          if [ -f freebsd-build.ok ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish FreeBSD debug log
+        if: steps.release.outputs.tag != '' && steps.freebsd_result.outputs.ok != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
+          files: freebsd-build.log
+          body: |
+            FreeBSD build did not complete. Download `freebsd-build.log` from assets for the latest failure details.
+          generate_release_notes: false
+
       - name: Check FreeBSD build result
         run: |
           test -f freebsd-build.ok
 
       - name: Publish GitHub Release
-        if: steps.release.outputs.tag != ''
+        if: steps.release.outputs.tag != '' && steps.freebsd_result.outputs.ok == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release.outputs.tag }}
