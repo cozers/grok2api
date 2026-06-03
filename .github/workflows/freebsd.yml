@@ -57,9 +57,19 @@ jobs:
               python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
               python3.13 -m pip --version || python3.13 /tmp/get-pip.py
               python3.13 -m pip install --upgrade pip
-              python3.13 -m pip install uv
-              python3.13 -m uv sync --frozen --no-dev
+              python3.13 -m venv .venv
               . .venv/bin/activate
+              python -m pip install --upgrade pip
+              python - <<'PY' > /tmp/grok2api-requirements.txt
+              import tomllib
+
+              with open("pyproject.toml", "rb") as fh:
+                  project = tomllib.load(fh)["project"]
+
+              for dep in project["dependencies"]:
+                  print(dep.split("#", 1)[0].strip())
+              PY
+              python -m pip install -r /tmp/grok2api-requirements.txt
               PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
               python -m PyInstaller \
                 --clean \
