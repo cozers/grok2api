@@ -41,6 +41,7 @@ jobs:
         with:
           release: "14.3"
           usesh: true
+          sync: nfs
           prepare: |
             mkdir -p /usr/local/etc/pkg/repos
             printf 'FreeBSD: { url: "pkg+https://pkg.FreeBSD.org/${ABI}/latest" }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
