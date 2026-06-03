@@ -47,46 +47,54 @@ jobs:
             pkg update -f
             pkg install -y python313 rust pkgconf libffi openssl sqlite3 curl gmake cmake ninja autoconf automake libtool
           run: |
-            set -eux
-            freebsd-version
-            python3.13 --version
-            cargo --version
-            python3.13 -m ensurepip --upgrade || true
-            python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
-            python3.13 -m pip --version || python3.13 /tmp/get-pip.py
-            python3.13 -m pip install --upgrade pip
-            python3.13 -m pip install uv
-            python3.13 -m uv sync --frozen --no-dev
-            . .venv/bin/activate
-            python -m pip install pyinstaller
-            python -m PyInstaller \
-              --clean \
-              --onefile \
-              --name grok2api \
-              --collect-submodules app \
-              --collect-data app \
-              --collect-data tiktoken \
-              --collect-all granian \
-              --collect-all curl_cffi \
-              --add-data config.defaults.toml:. \
-              --add-data pyproject.toml:. \
-              packaging/freebsd/launcher.py
-            strip dist/grok2api || true
-            mkdir -p dist/grok2api-freebsd-amd64
-            cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
-            cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
-            cp packaging/freebsd/start.sh dist/grok2api-freebsd-amd64/start.sh
-            cp packaging/freebsd/README.serv00.md dist/grok2api-freebsd-amd64/README.serv00.md
-            chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
-            tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
-            ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
+            rm -f /tmp/grok2api-freebsd-build-ok
+            (
+              set -eux
+              freebsd-version
+              python3.13 --version
+              cargo --version
+              python3.13 -m ensurepip --upgrade || true
+              python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
+              python3.13 -m pip --version || python3.13 /tmp/get-pip.py
+              python3.13 -m pip install --upgrade pip
+              python3.13 -m pip install uv
+              python3.13 -m uv sync --frozen --no-dev
+              . .venv/bin/activate
+              PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
+              python -m PyInstaller \
+                --clean \
+                --onefile \
+                --name grok2api \
+                --collect-submodules app \
+                --collect-data app \
+                --collect-data tiktoken \
+                --collect-all granian \
+                --collect-all curl_cffi \
+                --add-data config.defaults.toml:. \
+                --add-data pyproject.toml:. \
+                packaging/freebsd/launcher.py
+              strip dist/grok2api || true
+              mkdir -p dist/grok2api-freebsd-amd64
+              cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
+              cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
+              cp packaging/freebsd/start.sh dist/grok2api-freebsd-amd64/start.sh
+              cp packaging/freebsd/README.serv00.md dist/grok2api-freebsd-amd64/README.serv00.md
+              chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
+              tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
+              ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
+              touch /tmp/grok2api-freebsd-build-ok
+            ) 2>&1 | tee freebsd-build.log
+            test -f /tmp/grok2api-freebsd-build-ok
 
       - name: Upload artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: grok2api-freebsd-amd64
-          path: dist/grok2api-freebsd-amd64.tar.gz
-          if-no-files-found: error
+          path: |
+            dist/grok2api-freebsd-amd64.tar.gz
+            freebsd-build.log
+          if-no-files-found: warn
 
       - name: Publish GitHub Release
         if: steps.release.outputs.tag != ''
