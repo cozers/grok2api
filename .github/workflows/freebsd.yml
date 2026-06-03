@@ -2,6 +2,11 @@ name: Build FreeBSD Binary
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish, for example v2.0.4-freebsd. Leave empty to build artifact only."
+        required: false
+        type: string
   push:
     branches: [main]
     tags: ["v*"]
@@ -13,11 +18,23 @@ jobs:
     name: FreeBSD amd64
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.release_tag }}" ]; then
+            echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build in FreeBSD
         uses: vmactions/freebsd-vm@v1
@@ -49,7 +66,9 @@ jobs:
             mkdir -p dist/grok2api-freebsd-amd64
             cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
             cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
+            cp packaging/freebsd/start.sh dist/grok2api-freebsd-amd64/start.sh
             cp packaging/freebsd/README.serv00.md dist/grok2api-freebsd-amd64/README.serv00.md
+            chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
             tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
             ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
 
@@ -59,3 +78,12 @@ jobs:
           name: grok2api-freebsd-amd64
           path: dist/grok2api-freebsd-amd64.tar.gz
           if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: steps.release.outputs.tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: ${{ steps.release.outputs.tag }}
+          files: dist/grok2api-freebsd-amd64.tar.gz
+          generate_release_notes: true
