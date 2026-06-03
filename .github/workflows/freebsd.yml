@@ -1,0 +1,61 @@
+name: Build FreeBSD Binary
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  schedule:
+    - cron: "35 20 * * *"
+
+jobs:
+  build-freebsd:
+    name: FreeBSD amd64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build in FreeBSD
+        uses: vmactions/freebsd-vm@v1
+        with:
+          release: "14.2"
+          usesh: true
+          prepare: |
+            pkg update
+            pkg install -y python313 py313-pip rust cargo pkgconf libffi openssl sqlite3 curl gmake
+          run: |
+            set -eux
+            python3.13 -m pip install --upgrade pip
+            python3.13 -m pip install uv pyinstaller
+            python3.13 -m uv sync --frozen --no-dev
+            . .venv/bin/activate
+            pyinstaller \
+              --clean \
+              --onefile \
+              --name grok2api \
+              --collect-submodules app \
+              --collect-data app \
+              --collect-data tiktoken \
+              --collect-all granian \
+              --collect-all curl_cffi \
+              --add-data config.defaults.toml:. \
+              --add-data pyproject.toml:. \
+              packaging/freebsd/launcher.py
+            strip dist/grok2api || true
+            mkdir -p dist/grok2api-freebsd-amd64
+            cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
+            cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
+            cp packaging/freebsd/README.serv00.md dist/grok2api-freebsd-amd64/README.serv00.md
+            tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
+            ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grok2api-freebsd-amd64
+          path: dist/grok2api-freebsd-amd64.tar.gz
+          if-no-files-found: error

@@ -1,0 +1,36 @@
+name: Sync Upstream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 19 * * *"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ssh-key: ${{ secrets.SYNC_SSH_KEY }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin git@github.com:${{ github.repository }}.git
+
+      - name: Merge upstream
+        run: |
+          set -eux
+          git remote add upstream https://github.com/jiujiu532/grok2api.git
+          git fetch upstream main
+          git checkout main
+          git merge --no-edit upstream/main
+
+      - name: Push with SSH
+        run: git push origin main
