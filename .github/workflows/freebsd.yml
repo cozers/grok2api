@@ -47,8 +47,9 @@ jobs:
             pkg update -f
             pkg install -y python313 rust pkgconf libffi openssl sqlite3 curl gmake cmake ninja autoconf automake libtool
           run: |
-            rm -f /tmp/grok2api-freebsd-build-ok
-            (
+            rm -f freebsd-build.ok freebsd-build.status freebsd-build.log
+            set +e
+            {
               set -eux
               freebsd-version
               python3.13 --version
@@ -92,9 +93,12 @@ jobs:
               chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
               tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
               ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
-              touch /tmp/grok2api-freebsd-build-ok
-            ) 2>&1 | tee freebsd-build.log
-            test -f /tmp/grok2api-freebsd-build-ok
+              touch freebsd-build.ok
+            } > freebsd-build.log 2>&1
+            status=$?
+            echo "$status" > freebsd-build.status
+            cat freebsd-build.log
+            exit 0
 
       - name: Upload artifact
         if: always()
@@ -105,6 +109,10 @@ jobs:
             dist/grok2api-freebsd-amd64.tar.gz
             freebsd-build.log
           if-no-files-found: warn
+
+      - name: Check FreeBSD build result
+        run: |
+          test -f freebsd-build.ok
 
       - name: Publish GitHub Release
         if: steps.release.outputs.tag != ''
