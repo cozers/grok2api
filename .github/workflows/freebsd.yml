@@ -45,7 +45,7 @@ jobs:
             mkdir -p /usr/local/etc/pkg/repos
             printf 'FreeBSD: { url: "pkg+https://pkg.FreeBSD.org/${ABI}/latest" }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
             pkg update -f
-            pkg install -y python313 rust pkgconf libffi openssl sqlite3 curl gmake
+            pkg install -y python313 rust pkgconf libffi openssl sqlite3 curl gmake cmake ninja autoconf automake libtool
           run: |
             set -eux
             freebsd-version
@@ -55,10 +55,11 @@ jobs:
             python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
             python3.13 -m pip --version || python3.13 /tmp/get-pip.py
             python3.13 -m pip install --upgrade pip
-            python3.13 -m pip install uv pyinstaller
+            python3.13 -m pip install uv
             python3.13 -m uv sync --frozen --no-dev
             . .venv/bin/activate
-            pyinstaller \
+            python -m pip install pyinstaller
+            python -m PyInstaller \
               --clean \
               --onefile \
               --name grok2api \
