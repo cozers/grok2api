@@ -61,15 +61,7 @@ jobs:
               python3.13 -m venv .venv
               . .venv/bin/activate
               python -m pip install --upgrade pip
-              python - <<'PY' > /tmp/grok2api-requirements.txt
-              import tomllib
-
-              with open("pyproject.toml", "rb") as fh:
-                  project = tomllib.load(fh)["project"]
-
-              for dep in project["dependencies"]:
-                  print(dep.split("#", 1)[0].strip())
-              PY
+              python -c 'import tomllib; deps=tomllib.load(open("pyproject.toml","rb"))["project"]["dependencies"]; print("\n".join(dep.split("#", 1)[0].strip() for dep in deps))' > /tmp/grok2api-requirements.txt
               python -m pip install -r /tmp/grok2api-requirements.txt
               PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
               python -m PyInstaller \
