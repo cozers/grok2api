@@ -90,6 +90,8 @@ jobs:
             status=$?
             echo "$status" > freebsd-build.status
             cat freebsd-build.log
+            rm -rf .venv build __pycache__ .pytest_cache
+            rm -f grok2api.spec
             exit 0
 
       - name: Upload artifact
