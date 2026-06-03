@@ -79,7 +79,9 @@ jobs:
             --add-data config.defaults.toml:. \
             --add-data pyproject.toml:. \
             packaging/freebsd/launcher.py
-          strip dist/grok2api || true
+          binary_size=$(stat -f %z dist/grok2api)
+          echo "PyInstaller binary size: ${binary_size} bytes"
+          test "$binary_size" -gt 5000000
           mkdir -p dist/grok2api-freebsd-amd64
           cp dist/grok2api dist/grok2api-freebsd-amd64/grok2api
           cp config.defaults.toml .env.example dist/grok2api-freebsd-amd64/
