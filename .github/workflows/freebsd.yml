@@ -42,10 +42,15 @@ jobs:
           release: "14.3"
           usesh: true
           prepare: |
-            pkg update
-            pkg install -y python313 rust cargo pkgconf libffi openssl sqlite3 curl gmake
+            mkdir -p /usr/local/etc/pkg/repos
+            printf 'FreeBSD: { url: "pkg+https://pkg.FreeBSD.org/${ABI}/latest" }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
+            pkg update -f
+            pkg install -y python313 rust pkgconf libffi openssl sqlite3 curl gmake
           run: |
             set -eux
+            freebsd-version
+            python3.13 --version
+            cargo --version
             python3.13 -m ensurepip --upgrade || true
             python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
             python3.13 -m pip --version || python3.13 /tmp/get-pip.py
