@@ -46,7 +46,7 @@ jobs:
             mkdir -p /usr/local/etc/pkg/repos
             printf 'FreeBSD: { url: "pkg+https://pkg.FreeBSD.org/${ABI}/latest" }\n' > /usr/local/etc/pkg/repos/FreeBSD.conf
             pkg update -f
-            pkg install -y python313 rust pkgconf libffi openssl sqlite3 curl gmake cmake ninja autoconf automake libtool
+            pkg install -y python313 py313-sqlite3 rust pkgconf libffi openssl sqlite3 curl gmake cmake ninja autoconf automake libtool
 
       - name: Build in FreeBSD
         shell: freebsd {0}
@@ -57,6 +57,7 @@ jobs:
           set -eux
           freebsd-version
           python3.13 --version
+          python3.13 -c 'import _sqlite3, sqlite3; print("sqlite3 ok", sqlite3.sqlite_version)'
           cargo --version
           python3.13 -m ensurepip --upgrade || true
           python3.13 -m pip --version || fetch -o /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py
@@ -76,6 +77,11 @@ jobs:
             --collect-data app \
             --collect-data tiktoken \
             --collect-all granian \
+            --collect-all uvicorn \
+            --collect-all websockets \
+            --hidden-import _sqlite3 \
+            --hidden-import sqlite3 \
+            --hidden-import h11 \
             --add-data config.defaults.toml:. \
             --add-data pyproject.toml:. \
             packaging/freebsd/launcher.py
@@ -90,6 +96,7 @@ jobs:
           chmod +x dist/grok2api-freebsd-amd64/grok2api dist/grok2api-freebsd-amd64/start.sh
           tar -C dist -czf dist/grok2api-freebsd-amd64.tar.gz grok2api-freebsd-amd64
           ./dist/grok2api-freebsd-amd64/grok2api --help >/tmp/grok2api-help.txt || true
+          GROK2API_FREEBSD_SELF_TEST=1 ./dist/grok2api-freebsd-amd64/grok2api
           touch freebsd-build.ok
           SH
           chmod +x freebsd-build.sh

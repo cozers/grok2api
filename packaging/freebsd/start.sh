@@ -20,6 +20,7 @@ fi
 : "${SERVER_HOST:=0.0.0.0}"
 : "${SERVER_PORT:=8000}"
 : "${SERVER_WORKERS:=1}"
+: "${SERVER_ENGINE:=uvicorn}"
 : "${DATA_DIR:=$APP_DIR/data}"
 : "${LOG_DIR:=$APP_DIR/logs}"
 : "${LOG_FILE_ENABLED:=true}"
@@ -36,7 +37,7 @@ esac
 
 mkdir -p "$DATA_DIR" "$LOG_DIR"
 
-export SERVER_HOST SERVER_PORT SERVER_WORKERS DATA_DIR LOG_DIR LOG_FILE_ENABLED
+export SERVER_HOST SERVER_PORT SERVER_WORKERS SERVER_ENGINE DATA_DIR LOG_DIR LOG_FILE_ENABLED
 
 is_running() {
   [ -f "$PID_FILE" ] || return 1
@@ -55,7 +56,7 @@ start() {
   cd "$APP_DIR"
   nohup "$BIN" >> "$OUT_LOG" 2>&1 &
   echo $! > "$PID_FILE"
-  echo "grok2api started: pid $(cat "$PID_FILE"), port $SERVER_PORT"
+  echo "grok2api started: pid $(cat "$PID_FILE"), engine $SERVER_ENGINE, port $SERVER_PORT"
   echo "log: $OUT_LOG"
 }
 

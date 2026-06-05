@@ -37,12 +37,17 @@ Edit at least the port and public URL:
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8000
 SERVER_WORKERS=1
+SERVER_ENGINE=uvicorn
 DATA_DIR=./data
 LOG_DIR=./logs
 LOG_FILE_ENABLED=true
 ```
 
 If serv00 assigns a fixed application port, set `SERVER_PORT` to that assigned port.
+
+`SERVER_ENGINE=uvicorn` is the default for serv00. Granian can require shared
+socket operations that are blocked on some serv00 hosts, so only use
+`SERVER_ENGINE=granian` when your account permits it.
 
 ## 3. Start
 

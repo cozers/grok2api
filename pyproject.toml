@@ -27,6 +27,8 @@ dependencies = [
     "tiktoken>=0.8.0",
     "urllib3>=2.7.0",
     "tomli-w>=1.2.0",
+    "uvicorn>=0.38.0",
+    "websockets>=15.0.1",
 ]
 
 [dependency-groups]
