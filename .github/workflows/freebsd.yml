@@ -67,6 +67,7 @@ jobs:
           . .venv/bin/activate
           python -m pip install --upgrade pip
           python -c 'import tomllib; deps=tomllib.load(open("pyproject.toml","rb"))["project"]["dependencies"]; print("\n".join(dep.split("#", 1)[0].strip() for dep in deps if not dep.startswith("curl-cffi")))' > /tmp/grok2api-requirements.txt
+          ! grep -i '^curl-cffi' /tmp/grok2api-requirements.txt
           python -m pip install -r /tmp/grok2api-requirements.txt
           PYINSTALLER_COMPILE_BOOTLOADER=1 python -m pip install --no-binary pyinstaller pyinstaller
           python -m PyInstaller \
@@ -162,6 +163,7 @@ jobs:
           tag_name: ${{ steps.release.outputs.tag }}
           name: ${{ steps.release.outputs.tag }}
           files: freebsd-build.log
+          overwrite_files: true
           body: |
             FreeBSD build did not complete. Download `freebsd-build.log` from assets for the latest failure details.
           generate_release_notes: false
@@ -177,4 +179,5 @@ jobs:
           tag_name: ${{ steps.release.outputs.tag }}
           name: ${{ steps.release.outputs.tag }}
           files: dist/grok2api-freebsd-amd64.tar.gz
+          overwrite_files: true
           generate_release_notes: true
