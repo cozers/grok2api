@@ -175,13 +175,30 @@ class _AiohttpResponse:
         self.content = content if content is not None else b""
 
     async def aiter_lines(self):
-        async for raw in self._response.content:
-            for line in raw.splitlines():
+        pending = b""
+        async for raw in self._response.content.iter_any():
+            if not raw:
+                continue
+            pending += raw
+            while True:
+                nl = pending.find(b"\n")
+                if nl < 0:
+                    break
+                line = pending[:nl]
+                pending = pending[nl + 1 :]
+                if line.endswith(b"\r"):
+                    line = line[:-1]
                 yield line.decode("utf-8", "replace")
+        if pending:
+            if pending.endswith(b"\r"):
+                pending = pending[:-1]
+            yield pending.decode("utf-8", "replace")
+        self._response.release()
 
     async def aiter_content(self):
         async for chunk in self._response.content.iter_chunked(65536):
             yield chunk
+        self._response.release()
 
 
 class _AiohttpSession:
