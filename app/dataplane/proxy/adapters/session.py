@@ -224,6 +224,15 @@ class _AiohttpSession:
         request_kwargs.pop("impersonate", None)
         request_kwargs.pop("curl_options", None)
         request_kwargs.pop("allow_redirects", None)
+        headers = request_kwargs.get("headers")
+        if isinstance(headers, dict):
+            headers = dict(headers)
+            accept_encoding = headers.get("Accept-Encoding")
+            if isinstance(accept_encoding, str) and (
+                "br" in accept_encoding.lower() or "zstd" in accept_encoding.lower()
+            ):
+                headers["Accept-Encoding"] = "gzip, deflate"
+            request_kwargs["headers"] = headers
         proxy = self._kwargs.get("proxy")
         proxies = self._kwargs.get("proxies") or {}
         if not proxy and isinstance(proxies, dict):

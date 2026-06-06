@@ -7,6 +7,24 @@ from app.dataplane.proxy.adapters.session import _AiohttpSession
 
 
 class AiohttpSessionFallbackTests(unittest.TestCase):
+    def test_request_kwargs_downgrades_unsupported_accept_encoding(self):
+        session = _AiohttpSession()
+        kwargs = session._request_kwargs(
+            {
+                "headers": {
+                    "Accept-Encoding": "gzip, deflate, br, zstd",
+                    "User-Agent": "test",
+                },
+                "impersonate": "chrome120",
+                "curl_options": {},
+            }
+        )
+
+        self.assertEqual(kwargs["headers"]["Accept-Encoding"], "gzip, deflate")
+        self.assertEqual(kwargs["headers"]["User-Agent"], "test")
+        self.assertNotIn("impersonate", kwargs)
+        self.assertNotIn("curl_options", kwargs)
+
     def test_aiter_lines_buffers_chunks_until_newline(self):
         async def run_case():
             async def handler(request):
