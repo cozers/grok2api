@@ -17,6 +17,7 @@ jobs:
   build-freebsd:
     name: FreeBSD amd64
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     permissions:
       contents: write
 
