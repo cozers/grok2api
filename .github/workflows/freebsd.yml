@@ -81,6 +81,7 @@ jobs:
             --collect-all granian \
             --collect-all uvicorn \
             --collect-all websockets \
+            --collect-all primp \
             --hidden-import _sqlite3 \
             --hidden-import sqlite3 \
             --hidden-import h11 \

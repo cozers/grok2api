@@ -116,7 +116,10 @@ class ResettableSession:
 
             return AsyncSession(**self._kwargs)
         except ImportError:
-            return _AiohttpSession(**self._kwargs)
+            try:
+                return _PrimpSession(**self._kwargs)
+            except Exception:
+                return _AiohttpSession(**self._kwargs)
 
     async def _maybe_reset(self) -> None:
         if not self._reset_pending:
@@ -199,6 +202,115 @@ class _AiohttpResponse:
         async for chunk in self._response.content.iter_chunked(65536):
             yield chunk
         self._response.release()
+
+
+def _primp_impersonate_name(browser: str) -> str:
+    if not browser:
+        return "chrome_136"
+    name = browser.strip().lower().replace("-", "_")
+    if name.startswith("chrome") and "_" not in name:
+        return "chrome_" + name[len("chrome") :]
+    if name.startswith("edge") and "_" not in name:
+        return "edge_" + name[len("edge") :]
+    if name.startswith("safari") and "_" not in name:
+        return "safari_" + name[len("safari") :]
+    return name
+
+
+class _PrimpResponse:
+    def __init__(self, response, content: bytes | None = None) -> None:
+        self._response = response
+        self.status_code = response.status_code
+        self.headers = response.headers
+        self.content = content if content is not None else b""
+
+    async def aiter_lines(self):
+        async for line in self._response.aiter_lines():
+            yield line
+        await self._response.aclose()
+
+    async def aiter_content(self):
+        async for chunk in self._response.aiter_bytes():
+            yield chunk
+        await self._response.aclose()
+
+
+class _PrimpSession:
+    """curl_cffi-like subset backed by primp browser impersonation.
+
+    This is the preferred FreeBSD fallback because aiohttp cannot provide the
+    browser TLS/HTTP2 fingerprint required by some console.x.ai endpoints.
+    """
+
+    def __init__(self, **kwargs: Any) -> None:
+        import primp
+
+        self._kwargs = kwargs
+        self._primp = primp
+        self._client = None
+
+    def _proxy_url(self) -> str | None:
+        proxy = self._kwargs.get("proxy")
+        proxies = self._kwargs.get("proxies") or {}
+        if not proxy and isinstance(proxies, dict):
+            proxy = proxies.get("https") or proxies.get("http")
+        return proxy or None
+
+    def _client_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {
+            "impersonate": _primp_impersonate_name(str(self._kwargs.get("impersonate") or "")),
+            "follow_redirects": True,
+        }
+        proxy = self._proxy_url()
+        if proxy:
+            kwargs["proxy"] = proxy
+        if _skip_proxy_ssl(proxy or ""):
+            kwargs["verify"] = False
+        return kwargs
+
+    async def _ensure(self):
+        if self._client is None:
+            self._client = self._primp.AsyncClient(**self._client_kwargs())
+        return self._client
+
+    def _request_kwargs(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        request_kwargs = dict(kwargs)
+        request_kwargs.pop("impersonate", None)
+        request_kwargs.pop("curl_options", None)
+        allow_redirects = request_kwargs.pop("allow_redirects", None)
+        if allow_redirects is not None:
+            request_kwargs["follow_redirects"] = bool(allow_redirects)
+        if "data" in request_kwargs and "content" not in request_kwargs:
+            request_kwargs["content"] = request_kwargs.pop("data")
+        return request_kwargs
+
+    async def _request(self, method: str, url: str, **kwargs: Any):
+        client = await self._ensure()
+        stream = bool(kwargs.pop("stream", False))
+        request_kwargs = self._request_kwargs(kwargs)
+        response = await client.request(
+            method.upper(),
+            url,
+            stream=stream,
+            **request_kwargs,
+        )
+        if stream:
+            return _PrimpResponse(response)
+        content = await response.aread()
+        await response.aclose()
+        return _PrimpResponse(response, content)
+
+    async def get(self, url: str, **kwargs: Any):
+        return await self._request("GET", url, **kwargs)
+
+    async def post(self, url: str, **kwargs: Any):
+        return await self._request("POST", url, **kwargs)
+
+    async def delete(self, url: str, **kwargs: Any):
+        return await self._request("DELETE", url, **kwargs)
+
+    async def close(self) -> None:
+        self._client = None
 
 
 class _AiohttpSession:
